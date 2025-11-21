@@ -1,17 +1,19 @@
-app = "super-invention"
-
-[experimental]
-  allowed_public_ports = []
-  auto_rollback = true
+app = "your-app-name"
+primary_region = "sin"
 
 [env]
+  PORT = "3000"
 
 [[services]]
   internal_port = 3000
+  processes = ["app"]
   protocol = "tcp"
 
-  [[services.ports]]
-    port = 80
+  [services.concurrency]
+    type = "connections"
+    soft_limit = 25
+    hard_limit = 50
 
-  [[services.ports]]
-    port = 443
+[mounts]
+  source = "whatsapp_data"
+  destination = "/data"
