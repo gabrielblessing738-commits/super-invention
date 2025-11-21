@@ -1,12 +1,9 @@
-import http from "http";
+const express = require("express");
+const app = express();
 
-const port = process.env.PORT || 8080;
-
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Hello from Fly.io without using a terminal!");
+app.get("/", (req, res) => {
+  res.send("WhatsApp bot is running!");
 });
 
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// required for Fly.io
+app.listen(3000, () => console.log("Server running on port 3000"));
