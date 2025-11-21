@@ -1,103 +1,77 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion
+} = require("@whiskeysockets/baileys");
 
-// ------------------------------
-// CONFIGURATION
-// ------------------------------
-const GROUP1_NAME = "Group 1";   // Agents group
-const GROUP2_NAME = "Group 2";   // Management group
-const KEYWORD = "[Appointment]"; // Trigger keyword
-// ------------------------------
+const pino = require("pino");
+const fs = require("fs");
 
-console.log("Bot starting…");
+// ========= CONFIG ========= //
+const KEYWORD = "[Appointment]";
 
-const client = new Client({
-    authStrategy: new LocalAuth(), // saves login session
-    puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    }
-});
+// Replace these after buyer gives real group IDs
+const GROUP_1_ID = "GROUP1ID@g.us"; 
+const GROUP_2_ID = "GROUP2ID@g.us"; 
 
-// Show QR on first login
-client.on('qr', qr => {
-    console.log("Scan the QR Code to login:");
-    qrcode.generate(qr, { small: true });
-});
+// ======== FORMATTER FUNCTION ======== //
+function formatProfessional(message) {
+    return `
+📌 *New Appointment Received*
 
-// Logged in successfully
-client.on('ready', async () => {
-    console.log("WhatsApp bot is ready!");
+${message}
 
-    const chats = await client.getChats();
-
-    global.group1 = chats.find(c => c.isGroup && c.name === GROUP1_NAME);
-    global.group2 = chats.find(c => c.isGroup && c.name === GROUP2_NAME);
-
-    if (!group1) console.log(`❌ Group "${GROUP1_NAME}" not found`);
-    if (!group2) console.log(`❌ Group "${GROUP2_NAME}" not found`);
-
-    if (group1 && group2) {
-        console.log("Both groups found. Monitoring started…");
-    }
-});
-
-// ------------------------------
-// MESSAGE LISTENER
-// ------------------------------
-client.on('message', async msg => {
-    try {
-        // Ignore if groups not detected yet
-        if (!group1 || !group2) return;
-
-        const chat = await msg.getChat();
-
-        // Only monitor Group 1
-        if (!chat.isGroup || chat.id._serialized !== group1.id._serialized) return;
-
-        // Only trigger on "[Appointment]"
-        if (!msg.body.includes(KEYWORD)) return;
-
-        console.log("Appointment detected — processing…");
-
-        // Clean & reformat
-        const formatted = formatAppointment(msg.body);
-
-        // Forward to Group 2
-        await client.sendMessage(group2.id._serialized, formatted);
-
-        console.log("Appointment forwarded!");
-
-    } catch (err) {
-        console.error("Error processing appointment:", err);
-    }
-});
-
-// ------------------------------
-// FORMAT THE APPOINTMENT
-// ------------------------------
-function formatAppointment(text) {
-
-    // Remove "[Appointment]"
-    text = text.replace("[Appointment]", "").trim();
-
-    // Split into lines
-    let lines = text.split("\n").map(l => l.trim()).filter(l => l);
-
-    let output = "📌 *New Appointment Received*\n\n";
-
-    lines.forEach(line => {
-        // Turn things like "Date: 12 Dec" into "**Date:** 12 Dec"
-        if (line.includes(":")) {
-            const [key, value] = line.split(":");
-            output += `• *${key.trim()}*: ${value.trim()}\n`;
-        } else {
-            // Titles like “Breeze Hill Appointment”
-            output += `*${line}*\n`;
-        }
-    });
-
-    return output;
+🗂️ Forwarded automatically to management.
+`.trim();
 }
 
-// Start
-client.initialize();
+// ===================================== //
+
+async function startBot() {
+    const { state, saveCreds } = await useMultiFileAuthState("./auth");
+
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+        version,
+        printQRInTerminal: true,
+        auth: state,
+        logger: pino({ level: "silent" })
+    });
+
+    sock.ev.on("creds.update", saveCreds);
+
+    console.log("✅ Bot is running… Waiting for messages.");
+
+    sock.ev.on("messages.upsert", async (m) => {
+        try {
+            const msg = m.messages[0];
+            if (!msg.message) return;
+
+            const from = msg.key.remoteJid;
+            const messageContent = msg.message.conversation || msg.message.extendedTextMessage?.text;
+
+            if (!messageContent) return;
+
+            // Only monitor Group 1
+            if (from !== GROUP_1_ID) return;
+
+            // Keyword detection
+            if (messageContent.includes(KEYWORD)) {
+                console.log("📌 Appointment message detected!");
+
+                const formatted = formatProfessional(messageContent);
+
+                await sock.sendMessage(GROUP_2_ID, { text: formatted });
+
+                console.log("📤 Forwarded to Group 2");
+            }
+
+        } catch (err) {
+            console.error("❌ Error processing message:", err);
+        }
+    });
+}
+
+startBot();
+
