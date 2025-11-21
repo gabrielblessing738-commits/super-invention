@@ -5,11 +5,10 @@ import makeWASocket, {
 import { Boom } from "@hapi/boom";
 import express from "express";
 
-const GROUP1_NAME = "Group 1"; // Agents group
-const GROUP2_NAME = "Group 2"; // Management group
+const GROUP1_NAME = "Group 1";
+const GROUP2_NAME = "Group 2";
 const KEYWORD = "[Appointment]";
 
-// Express server to show QR on the browser
 const app = express();
 let qrCodeData = "";
 
@@ -31,19 +30,17 @@ app.get("/", (req, res) => {
 app.listen(3000, () => console.log("QR Server running on port 3000"));
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+    const { state, saveCreds } = await useMultiFileAuthState("/data/auth_info");
 
     const sock = makeWASocket({
         printQRInTerminal: true,
         auth: state
     });
 
-    // Show QR on the web page
     sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            // Convert to base64 PNG for browser display
             qrCodeData =
                 `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
         }
@@ -64,7 +61,6 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // When a new message is received
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return;
@@ -84,7 +80,6 @@ async function startBot() {
 
         const formatted = formatAppointment(text);
 
-        // Find Group 2 by name
         const allGroups = await sock.groupFetchAllParticipating();
         const groupList = Object.values(allGroups);
 
@@ -101,7 +96,6 @@ async function startBot() {
     });
 }
 
-// Format the appointment message
 function formatAppointment(text) {
     text = text.replace("[Appointment]", "").trim();
 
