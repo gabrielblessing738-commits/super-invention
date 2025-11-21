@@ -1,10 +1,13 @@
-app = "super-invention"
+app = "whatsapp-bot-app" # ← rename this to your Fly.io app name
+
+kill_signal = "SIGINT"
+kill_timeout = 5
 
 [env]
-PORT = "8080"
+PORT = "3000"
 
 [[services]]
-  internal_port = 8080
+  internal_port = 3000
   protocol = "tcp"
 
   [[services.ports]]
