@@ -1,30 +1,29 @@
 WhatsApp Appointment Forwarder
 
-This bot automatically forwards WhatsApp messages containing [Appointment]
+Automatically forwards WhatsApp messages containing [Appointment]
 from Group 1 → Group 2 using the Baileys WhatsApp API.
 
-It works on Fly.io, stays logged in permanently using a persistent volume,
-and shows the QR code on a browser page.
+This bot runs on Fly.io, stays logged in using a persistent volume, and displays the WhatsApp QR code in a browser page.
 
 🚀 Deploy on Fly.io
-1. Create a Fly.io Volume (persistent session)
+1️⃣ Create a Fly.io Volume (stores WhatsApp login)
 
-This stores your WhatsApp login so the bot stays connected.
+This keeps your bot logged in even after restart.
 
 fly volumes create whatsapp_data --region sin --size 1
 
-2. Deploy your app
+2️⃣ Deploy your app
 fly deploy
 
-3. View QR Code in logs (optional)
+3️⃣ View QR Code in logs (optional)
 
-You can see the QR in the terminal:
+You can also view the QR code printed in Fly logs:
 
 fly logs
 
-4. Open QR page in browser
+🌐 4️⃣ Scan the QR Code (web page)
 
-Your app also hosts a QR page at:
+Your app also hosts the QR code at:
 
 https://YOUR-APP-NAME.fly.dev
 
@@ -34,4 +33,16 @@ Example:
 https://super-invention.fly.dev
 
 
-Scan the QR with WhatsApp and the bot will connect.
+Open the link → scan the QR with WhatsApp → bot connects automatically.
+
+✔️ What the bot does
+
+Listens to messages in Group 1
+
+Detects messages containing [Appointment]
+
+Formats the appointment data
+
+Forwards it to Group 2
+
+Fully automated.
