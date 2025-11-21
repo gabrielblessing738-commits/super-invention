@@ -1,30 +1,18 @@
-# WhatsApp Appointment Bot
+# WhatsApp Automation Bot (Fly.io Deployment)
 
-A WhatsApp bot that automatically:
-
-- Monitors **Group 1**  
-- Detects messages containing **[Appointment]**  
-- Reformats the message into a professional format  
-- Sends it to **Group 2**  
-
-Powered by **Baileys** and designed to run on **Fly.io**.
+This project deploys a WhatsApp automation bot using **whatsapp-web.js** on **Fly.io** without needing a terminal QR scan.
 
 ---
 
 ## 🚀 Features
-- Auto-detect "[Appointment]"
-- Formats appointment into clean professional message
-- Forwards to another WhatsApp group
-- Web-based QR code login
-- Persistent session (no need login every time)
-- Fully deployable on Fly.io
+- Reads messages in a specific WhatsApp group.
+- Detects messages containing `[Appointment]`.
+- Formats the message.
+- Forwards it automatically to another group.
+- Runs 24/7 on Fly.io.
 
 ---
 
 ## 📦 Installation
+Install locally:
 
-Clone the repo:
-
-```sh
-git clone https://github.com/yourusername/yourrepo.git
-cd yourrepo
