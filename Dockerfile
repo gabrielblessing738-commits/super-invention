@@ -1,18 +1,10 @@
-# Use official lightweight Node.js image
-FROM node:18-alpine
+FROM node:18
 
-# Create app directory
 WORKDIR /app
 
-# Install dependencies
-COPY package.json ./
-RUN npm install --production
+COPY package*.json ./
+RUN npm install
 
-# Copy application code
 COPY . .
 
-# Fly.io provides PORT variable
-EXPOSE 8080
-
-# Start the app
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
