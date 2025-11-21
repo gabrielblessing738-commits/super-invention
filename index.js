@@ -1,76 +1,133 @@
-const {
-    default: makeWASocket,
+import makeWASocket, {
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
-} = require("@whiskeysockets/baileys");
+    DisconnectReason
+} from "@whiskeysockets/baileys";
+import {
+    Boom
+} from "@hapi/boom";
+import express from "express";
 
-const pino = require("pino");
-const fs = require("fs");
-
-// ========= CONFIG ========= //
+const GROUP1_NAME = "Group 1"; // Agents group
+const GROUP2_NAME = "Group 2"; // Management group
 const KEYWORD = "[Appointment]";
 
-// Replace these after buyer gives real group IDs
-const GROUP_1_ID = "GROUP1ID@g.us"; 
-const GROUP_2_ID = "GROUP2ID@g.us"; 
-
-// ======== FORMATTER FUNCTION ======== //
-function formatProfessional(message) {
-    return `
-📌 *New Appointment Received*
-
-${message}
-
-🗂️ Forwarded automatically to management.
-`.trim();
-}
-
-// ===================================== //
+// Express server to show QR on the browser
+const app = express();
+let qrCodeData = "";
+app.get("/", (req, res) => {
+    if (!qrCodeData) {
+        return res.send("<h2>QR not generated yet. Please wait…</h2>");
+    }
+    res.send(`
+        <html>
+        <body style="font-family: Arial; text-align: center; margin-top: 40px;">
+            <h2>Scan WhatsApp QR Code</h2>
+            <img src="${qrCodeData}" style="width: 300px; border: 2px solid #ddd; padding: 10px;">
+            <p>Keep your phone online to stay connected.</p>
+        </body>
+        </html>
+    `);
+});
+app.listen(3000, () => console.log("QR Server running on http://localhost:3000"));
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState("./auth");
-
-    const { version } = await fetchLatestBaileysVersion();
+    const {
+        state,
+        saveCreds
+    } = await useMultiFileAuthState("auth_info");
 
     const sock = makeWASocket({
-        version,
         printQRInTerminal: true,
-        auth: state,
-        logger: pino({ level: "silent" })
+        auth: state
+    });
+
+    // Show QR on the web page
+    sock.ev.on("connection.update", (update) => {
+        const {
+            connection,
+            lastDisconnect,
+            qr
+        } = update;
+
+        if (qr) {
+            // Convert to base64 PNG for browser display
+            qrCodeData = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+        }
+
+        if (connection === "close") {
+            const shouldReconnect =
+                (lastDisconnect.error = new Boom(
+                    lastDisconnect.error
+                )?.output?.statusCode !== DisconnectReason.loggedOut);
+
+            console.log("Connection closed. Reconnecting:", shouldReconnect);
+
+            if (shouldReconnect) startBot();
+        } else if (connection === "open") {
+            console.log("WhatsApp bot is connected!");
+        }
     });
 
     sock.ev.on("creds.update", saveCreds);
 
-    console.log("✅ Bot is running… Waiting for messages.");
+    // When a new message is received
+    sock.ev.on("messages.upsert", async ({
+        messages
+    }) => {
+        const msg = messages[0];
+        if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return; // Only group messages
 
-    sock.ev.on("messages.upsert", async (m) => {
-        try {
-            const msg = m.messages[0];
-            if (!msg.message) return;
+        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        if (!text) return;
 
-            const from = msg.key.remoteJid;
-            const messageContent = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
 
-            if (!messageContent) return;
+        // We check if message is from Group1
+        if (groupMetadata.subject !== GROUP1_NAME) return;
+        if (!text.includes(KEYWORD)) return;
 
-            // Only monitor Group 1
-            if (from !== GROUP_1_ID) return;
+        console.log("Appointment detected!");
 
-            // Keyword detection
-            if (messageContent.includes(KEYWORD)) {
-                console.log("📌 Appointment message detected!");
+        const formatted = formatAppointment(text);
 
-                const formatted = formatProfessional(messageContent);
+        // Find Group 2 by name
+        const allGroups = await sock.groupFetchAllParticipating();
+        const groupList = Object.values(allGroups);
 
-                await sock.sendMessage(GROUP_2_ID, { text: formatted });
+        const group2 = groupList.find((g) => g.subject === GROUP2_NAME);
 
-                console.log("📤 Forwarded to Group 2");
-            }
+        if (!group2) {
+            console.log("❌ Group 2 not found");
+            return;
+        }
 
-        } catch (err) {
-            console.error("❌ Error processing message:", err);
+        // Send formatted appointment to Group 2
+        await sock.sendMessage(group2.id, {
+            text: formatted
+        });
+
+        console.log("Forwarded appointment to Group 2");
+    });
+}
+
+// Format the appointment into a clean professional format
+function formatAppointment(text) {
+    text = text.replace("[Appointment]", "").trim();
+
+    let lines = text.split("\n").map((l) => l.trim()).filter((l) => l);
+
+    let output = "📌 *New Appointment Received*\n\n";
+
+    lines.forEach((line) => {
+        if (line.includes(":")) {
+            const [key, value] = line.split(":");
+            output += `• *${key.trim()}*: ${value.trim()}\n`;
+        } else {
+            output += `*${line}*\n`;
         }
     });
+
+    return output;
 }
 
 startBot();
