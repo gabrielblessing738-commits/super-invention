@@ -5,16 +5,16 @@ FROM node:18-slim
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json package-lock.json* ./
 
-# Install only production dependencies
+# Install dependencies
 RUN npm install --omit=dev
 
-# Copy the rest of the project
+# Copy project files
 COPY . .
 
-# Expose port (Fly.io needs this)
+# Expose port for QR server
 EXPOSE 3000
 
 # Start the bot
-CMD ["node", "server.js"]
+CMD ["node", "index.js"]
