@@ -2,9 +2,7 @@ import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason
 } from "@whiskeysockets/baileys";
-import {
-    Boom
-} from "@hapi/boom";
+import { Boom } from "@hapi/boom";
 import express from "express";
 
 const GROUP1_NAME = "Group 1"; // Agents group
@@ -14,6 +12,7 @@ const KEYWORD = "[Appointment]";
 // Express server to show QR on the browser
 const app = express();
 let qrCodeData = "";
+
 app.get("/", (req, res) => {
     if (!qrCodeData) {
         return res.send("<h2>QR not generated yet. Please wait…</h2>");
@@ -28,13 +27,11 @@ app.get("/", (req, res) => {
         </html>
     `);
 });
-app.listen(3000, () => console.log("QR Server running on http://localhost:3000"));
+
+app.listen(3000, () => console.log("QR Server running on port 3000"));
 
 async function startBot() {
-    const {
-        state,
-        saveCreds
-    } = await useMultiFileAuthState("auth_info");
+    const { state, saveCreds } = await useMultiFileAuthState("auth_info");
 
     const sock = makeWASocket({
         printQRInTerminal: true,
@@ -43,22 +40,19 @@ async function startBot() {
 
     // Show QR on the web page
     sock.ev.on("connection.update", (update) => {
-        const {
-            connection,
-            lastDisconnect,
-            qr
-        } = update;
+        const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
             // Convert to base64 PNG for browser display
-            qrCodeData = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+            qrCodeData =
+                `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
         }
 
         if (connection === "close") {
             const shouldReconnect =
-                (lastDisconnect.error = new Boom(
-                    lastDisconnect.error
-                )?.output?.statusCode !== DisconnectReason.loggedOut);
+                (lastDisconnect.error =
+                    new Boom(lastDisconnect.error)?.output?.statusCode) !==
+                DisconnectReason.loggedOut;
 
             console.log("Connection closed. Reconnecting:", shouldReconnect);
 
@@ -71,18 +65,18 @@ async function startBot() {
     sock.ev.on("creds.update", saveCreds);
 
     // When a new message is received
-    sock.ev.on("messages.upsert", async ({
-        messages
-    }) => {
+    sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0];
-        if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return; // Only group messages
+        if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return;
 
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        const text =
+            msg.message.conversation ||
+            msg.message.extendedTextMessage?.text;
+
         if (!text) return;
 
         const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
 
-        // We check if message is from Group1
         if (groupMetadata.subject !== GROUP1_NAME) return;
         if (!text.includes(KEYWORD)) return;
 
@@ -101,20 +95,20 @@ async function startBot() {
             return;
         }
 
-        // Send formatted appointment to Group 2
-        await sock.sendMessage(group2.id, {
-            text: formatted
-        });
+        await sock.sendMessage(group2.id, { text: formatted });
 
         console.log("Forwarded appointment to Group 2");
     });
 }
 
-// Format the appointment into a clean professional format
+// Format the appointment message
 function formatAppointment(text) {
     text = text.replace("[Appointment]", "").trim();
 
-    let lines = text.split("\n").map((l) => l.trim()).filter((l) => l);
+    let lines = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l);
 
     let output = "📌 *New Appointment Received*\n\n";
 
@@ -131,4 +125,3 @@ function formatAppointment(text) {
 }
 
 startBot();
-
