@@ -1,8 +1,14 @@
 {
-  "name": "super-invention",
+  "name": "whatsapp-bot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "WhatsApp automation bot for forwarding and formatting appointment messages",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.5.0",
+    "pino": "^9.0.0",
+    "axios": "^1.6.0"
   }
 }
