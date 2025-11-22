@@ -9,6 +9,7 @@ const GROUP1_NAME = "Group 1";
 const GROUP2_NAME = "Group 2";
 const KEYWORD = "[Appointment]";
 
+// Express web server to show QR
 const app = express();
 let qrCodeData = "";
 
@@ -16,21 +17,23 @@ app.get("/", (req, res) => {
     if (!qrCodeData) {
         return res.send("<h2>QR not generated yet. Please wait…</h2>");
     }
+
     res.send(`
         <html>
-        <body style="font-family: Arial; text-align: center; margin-top: 40px;">
+        <body style="font-family: Arial; text-align: center;">
             <h2>Scan WhatsApp QR Code</h2>
-            <img src="${qrCodeData}" style="width: 300px; border: 2px solid #ddd; padding: 10px;">
-            <p>Keep your phone online to stay connected.</p>
+            <img src="${qrCodeData}" width="300">
         </body>
         </html>
     `);
 });
 
-app.listen(3000, () => console.log("QR Server running on port 3000"));
+app.listen(3000, () =>
+    console.log("QR Server running at http://localhost:3000")
+);
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState("/data/auth_info");
+    const { state, saveCreds } = await useMultiFileAuthState("auth_info");
 
     const sock = makeWASocket({
         printQRInTerminal: true,
@@ -41,8 +44,7 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            qrCodeData =
-                `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+            qrCodeData = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
         }
 
         if (connection === "close") {
@@ -51,11 +53,11 @@ async function startBot() {
                     new Boom(lastDisconnect.error)?.output?.statusCode) !==
                 DisconnectReason.loggedOut;
 
-            console.log("Connection closed. Reconnecting:", shouldReconnect);
-
             if (shouldReconnect) startBot();
-        } else if (connection === "open") {
-            console.log("WhatsApp bot is connected!");
+        }
+
+        if (connection === "open") {
+            console.log("WhatsApp bot connected!");
         }
     });
 
@@ -63,7 +65,8 @@ async function startBot() {
 
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0];
-        if (!msg.message || !msg.key.remoteJid.endsWith("@g.us")) return;
+        if (!msg.message) return;
+        if (!msg.key.remoteJid.endsWith("@g.us")) return;
 
         const text =
             msg.message.conversation ||
@@ -72,50 +75,41 @@ async function startBot() {
         if (!text) return;
 
         const groupMetadata = await sock.groupMetadata(msg.key.remoteJid);
-
         if (groupMetadata.subject !== GROUP1_NAME) return;
         if (!text.includes(KEYWORD)) return;
-
-        console.log("Appointment detected!");
 
         const formatted = formatAppointment(text);
 
         const allGroups = await sock.groupFetchAllParticipating();
         const groupList = Object.values(allGroups);
-
         const group2 = groupList.find((g) => g.subject === GROUP2_NAME);
 
         if (!group2) {
-            console.log("❌ Group 2 not found");
+            console.log("Group 2 not found!");
             return;
         }
 
         await sock.sendMessage(group2.id, { text: formatted });
-
-        console.log("Forwarded appointment to Group 2");
     });
 }
 
 function formatAppointment(text) {
     text = text.replace("[Appointment]", "").trim();
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-    let lines = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l);
+    let out = "📌 *New Appointment Received*\n\n";
 
-    let output = "📌 *New Appointment Received*\n\n";
-
-    lines.forEach((line) => {
+    for (const line of lines) {
         if (line.includes(":")) {
-            const [key, value] = line.split(":");
-            output += `• *${key.trim()}*: ${value.trim()}\n`;
+            const [k, v] = line.split(":");
+            out += `• *${k.trim()}*: ${v.trim()}\n`;
         } else {
-            output += `*${line}*\n`;
+            out += `*${line}*\n`;
         }
-    });
+    }
 
-    return output;
+    return out;
 }
 
 startBot();
+
